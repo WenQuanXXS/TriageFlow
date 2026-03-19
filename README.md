@@ -134,3 +134,53 @@ flowchart TD
     M --> D
 
     E --> L[审计日志 Audit Log]
+```
+
+---
+
+## Quick Start
+
+### Prerequisites
+
+- Go 1.21+
+- Node.js 18+
+- MySQL 8 running locally (database: `triageflow`)
+
+### 1. Set up the database
+
+```sql
+CREATE DATABASE IF NOT EXISTS triageflow;
+```
+
+### 2. Start the backend
+
+```bash
+cd backend
+go mod tidy
+# Set env vars if your MySQL credentials differ from defaults:
+# export DB_USER=root DB_PASS=1234 DB_HOST=127.0.0.1 DB_PORT=3306 DB_NAME=triageflow
+go run main.go
+```
+
+The API server starts on `http://localhost:8080`.
+
+### 3. Start the frontend
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+The dev server starts on `http://localhost:5173` and proxies `/api` to the backend.
+
+---
+
+## API Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/tasks` | Create a triage task |
+| GET | `/api/tasks` | List tasks (optional `?status=X&priority=Y` filters) |
+| PATCH | `/api/tasks/:id/status` | Toggle task status (pending → in_progress → completed → pending) |
+| GET | `/api/dashboard` | Counts grouped by status and priority |
