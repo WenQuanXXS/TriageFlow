@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Form, Input, Button, Card, message, Spin } from 'antd'
+import { Form, Input, Button, Card, message, Spin, InputNumber, Select, Slider } from 'antd'
 import { useNavigate } from 'react-router-dom'
 import { createTask } from '../api/tasks'
 import { useLocale } from '../locales'
@@ -44,6 +44,30 @@ export default function TaskForm() {
             rules={[{ required: true, message: t('pleaseEnterChiefComplaint') }]}
           >
             <TextArea rows={4} placeholder={t('enterChiefComplaint')} />
+          </Form.Item>
+
+          <Form.Item name="age" label={t('age')}>
+            <InputNumber min={0} max={150} style={{ width: '100%' }} placeholder={t('enterAge')} />
+          </Form.Item>
+
+          <Form.Item name="gender" label={t('gender')}>
+            <Select placeholder={t('selectGender')} allowClear>
+              <Select.Option value="male">{t('male')}</Select.Option>
+              <Select.Option value="female">{t('female')}</Select.Option>
+              <Select.Option value="other">{t('otherGender')}</Select.Option>
+            </Select>
+          </Form.Item>
+
+          <Form.Item name="temperature" label={t('temperature')}>
+            <InputNumber min={35.0} max={42.0} step={0.1} style={{ width: '100%' }} placeholder={t('enterTemperature')} />
+          </Form.Item>
+
+          <Form.Item name="pain_level" label={t('painLevel')}>
+            <Slider min={0} max={10} marks={{ 0: '0', 5: '5', 10: '10' }} />
+          </Form.Item>
+
+          <Form.Item name="special_condition" label={t('specialCondition')}>
+            <TextArea rows={2} placeholder={t('enterSpecialCondition')} />
           </Form.Item>
 
           <Form.Item>

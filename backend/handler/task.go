@@ -18,8 +18,13 @@ type TaskHandler struct {
 }
 
 type CreateTaskRequest struct {
-	PatientName    string `json:"patient_name" binding:"required"`
-	ChiefComplaint string `json:"chief_complaint" binding:"required"`
+	PatientName      string  `json:"patient_name" binding:"required"`
+	ChiefComplaint   string  `json:"chief_complaint" binding:"required"`
+	Age              int     `json:"age"`
+	Gender           string  `json:"gender"`
+	Temperature      float64 `json:"temperature"`
+	PainLevel        int     `json:"pain_level"`
+	SpecialCondition string  `json:"special_condition"`
 }
 
 func (h *TaskHandler) CreateTask(c *gin.Context) {
@@ -30,16 +35,29 @@ func (h *TaskHandler) CreateTask(c *gin.Context) {
 	}
 
 	task := model.Task{
-		PatientName:    req.PatientName,
-		ChiefComplaint: req.ChiefComplaint,
-		Status:         "pending",
-		Priority:       "normal",
-		TriageStatus:   "pending",
+		PatientName:      req.PatientName,
+		ChiefComplaint:   req.ChiefComplaint,
+		Age:              req.Age,
+		Gender:           req.Gender,
+		Temperature:      req.Temperature,
+		PainLevel:        req.PainLevel,
+		SpecialCondition: req.SpecialCondition,
+		Status:           "pending",
+		Priority:         "normal",
+		TriageStatus:     "pending",
 	}
 
 	// Run triage if service is available
 	if h.TriageService != nil {
-		triageResult, rawOutput, err := h.TriageService.PerformTriage(context.Background(), req.ChiefComplaint)
+		patientInfo := service.PatientInfo{
+			ChiefComplaint:   req.ChiefComplaint,
+			Age:              req.Age,
+			Gender:           req.Gender,
+			Temperature:      req.Temperature,
+			PainLevel:        req.PainLevel,
+			SpecialCondition: req.SpecialCondition,
+		}
+		triageResult, rawOutput, err := h.TriageService.PerformTriage(context.Background(), patientInfo)
 		if err != nil {
 			task.TriageStatus = "failed"
 			task.LLMRawOutput = err.Error()
@@ -57,7 +75,7 @@ func (h *TaskHandler) CreateTask(c *gin.Context) {
 
 			// Run rule engine
 			if h.RuleEngine != nil {
-				ruleResult := h.RuleEngine.Evaluate(req.ChiefComplaint, triageResult)
+				ruleResult := h.RuleEngine.Evaluate(patientInfo, triageResult)
 				task.RuleTriggered = ruleResult.RuleTriggered
 				task.RuleReason = ruleResult.Reason
 				task.FinalPriority = ruleResult.FinalPriority

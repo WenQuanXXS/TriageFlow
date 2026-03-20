@@ -48,10 +48,10 @@ func NewRuleEngine() *RuleEngine {
 	}
 }
 
-// Evaluate checks the chief complaint and AI risk signals against safety rules.
+// Evaluate checks the chief complaint, patient info, and AI risk signals against safety rules.
 // If a rule triggers, it overrides the AI-suggested priority and department.
-func (re *RuleEngine) Evaluate(chiefComplaint string, aiResult *model.TriageResult) *model.RuleEngineResult {
-	complaint := strings.ToLower(chiefComplaint)
+func (re *RuleEngine) Evaluate(info PatientInfo, aiResult *model.TriageResult) *model.RuleEngineResult {
+	complaint := strings.ToLower(info.ChiefComplaint)
 
 	for _, rule := range re.rules {
 		for _, kw := range rule.Keywords {
@@ -63,6 +63,36 @@ func (re *RuleEngine) Evaluate(chiefComplaint string, aiResult *model.TriageResu
 					FinalDepartment: rule.ForceDept,
 				}
 			}
+		}
+	}
+
+	// Numeric / demographic rules
+	if info.Temperature >= 39.5 {
+		return &model.RuleEngineResult{
+			RuleTriggered:   "high_temperature",
+			Reason:          "体温≥39.5°C，高热需尽快退热并排查感染源",
+			FinalPriority:   "high",
+			FinalDepartment: "Internal Medicine",
+		}
+	}
+	if info.PainLevel >= 8 {
+		dept := ""
+		if aiResult != nil && len(aiResult.CandidateDepts) > 0 {
+			dept = aiResult.CandidateDepts[0]
+		}
+		return &model.RuleEngineResult{
+			RuleTriggered:   "severe_pain",
+			Reason:          "疼痛等级≥8，剧烈疼痛需尽快处理",
+			FinalPriority:   "high",
+			FinalDepartment: dept,
+		}
+	}
+	if info.Age > 0 && info.Age <= 3 {
+		return &model.RuleEngineResult{
+			RuleTriggered:   "infant",
+			Reason:          "婴幼儿（≤3岁）需优先处理",
+			FinalPriority:   "high",
+			FinalDepartment: "Pediatrics",
 		}
 	}
 
@@ -82,6 +112,20 @@ func (re *RuleEngine) Evaluate(chiefComplaint string, aiResult *model.TriageResu
 					}
 				}
 			}
+		}
+	}
+
+	// Elderly with any risk signal → at least high priority
+	if info.Age >= 75 && aiResult != nil && len(aiResult.RiskSignals) > 0 {
+		dept := ""
+		if len(aiResult.CandidateDepts) > 0 {
+			dept = aiResult.CandidateDepts[0]
+		}
+		return &model.RuleEngineResult{
+			RuleTriggered:   "elderly_risk",
+			Reason:          "老年患者（≥75岁）伴有风险信号，需优先处理",
+			FinalPriority:   "high",
+			FinalDepartment: dept,
 		}
 	}
 

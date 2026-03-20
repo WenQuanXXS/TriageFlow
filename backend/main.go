@@ -7,12 +7,18 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/triageflow/backend/config"
 	"github.com/triageflow/backend/handler"
+	"github.com/triageflow/backend/llm"
 	"github.com/triageflow/backend/model"
 	"github.com/triageflow/backend/service"
 )
 
 func main() {
-	db, err := config.InitDB()
+	cfg, err := config.Load("config.json")
+	if err != nil {
+		log.Fatal("failed to load config:", err)
+	}
+
+	db, err := config.InitDB(&cfg.DB)
 	if err != nil {
 		log.Fatal("failed to connect to database:", err)
 	}
@@ -21,7 +27,19 @@ func main() {
 		log.Fatal("failed to migrate database:", err)
 	}
 
-	triageService := service.NewMockTriageService()
+	// Select triage service: LLM (EINO) or Mock
+	var triageService service.Triager
+	if cfg.LLM.Enabled {
+		svc, err := llm.NewEinoTriageService(&cfg.LLM)
+		if err != nil {
+			log.Fatal("failed to init LLM triage service:", err)
+		}
+		triageService = svc
+		log.Println("Using LLM triage service (EINO)")
+	} else {
+		triageService = service.NewMockTriageService()
+		log.Println("Using Mock triage service")
+	}
 	ruleEngine := service.NewRuleEngine()
 
 	r := gin.Default()

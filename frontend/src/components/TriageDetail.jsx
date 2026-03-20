@@ -74,6 +74,24 @@ export default function TriageDetail() {
           </Descriptions.Item>
           <Descriptions.Item label={t('chiefComplaint')} span={2}>{task.chief_complaint}</Descriptions.Item>
 
+          {task.age > 0 && (
+            <Descriptions.Item label={t('age')}>{task.age}</Descriptions.Item>
+          )}
+          {task.gender && (
+            <Descriptions.Item label={t('gender')}>
+              {t(task.gender === 'male' ? 'male' : task.gender === 'female' ? 'female' : 'otherGender')}
+            </Descriptions.Item>
+          )}
+          {task.temperature > 0 && (
+            <Descriptions.Item label={t('temperature')}>{task.temperature}°C</Descriptions.Item>
+          )}
+          {task.pain_level > 0 && (
+            <Descriptions.Item label={t('painLevel')}>{task.pain_level}/10</Descriptions.Item>
+          )}
+          {task.special_condition && (
+            <Descriptions.Item label={t('specialCondition')} span={2}>{task.special_condition}</Descriptions.Item>
+          )}
+
           <Descriptions.Item label={t('symptoms')} span={2}>
             {symptoms.map((s, i) => <Tag key={i}>{s}</Tag>)}
           </Descriptions.Item>

@@ -9,10 +9,20 @@ import (
 	"github.com/triageflow/backend/model"
 )
 
+// PatientInfo carries all patient-submitted information for triage.
+type PatientInfo struct {
+	ChiefComplaint   string
+	Age              int
+	Gender           string
+	Temperature      float64
+	PainLevel        int
+	SpecialCondition string
+}
+
 // Triager defines the interface for triage services.
 // Implement this interface to swap between mock and real LLM.
 type Triager interface {
-	PerformTriage(ctx context.Context, complaint string) (*model.TriageResult, string, error)
+	PerformTriage(ctx context.Context, info PatientInfo) (*model.TriageResult, string, error)
 }
 
 // symptom-to-department mapping for mock
@@ -159,8 +169,10 @@ func NewMockTriageService() *MockTriageService {
 	return &MockTriageService{}
 }
 
-func (s *MockTriageService) PerformTriage(_ context.Context, complaint string) (*model.TriageResult, string, error) {
+func (s *MockTriageService) PerformTriage(_ context.Context, info PatientInfo) (*model.TriageResult, string, error) {
 	result := &model.TriageResult{}
+
+	complaint := info.ChiefComplaint
 
 	// Extract symptoms
 	for _, kw := range symptomKeywords {
