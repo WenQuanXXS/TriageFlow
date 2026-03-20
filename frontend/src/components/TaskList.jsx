@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Table, Tag, Button, Select, Space, message } from 'antd'
+import { Link } from 'react-router-dom'
 import { listTasks, toggleTaskStatus } from '../api/tasks'
 import { useLocale } from '../locales'
 
@@ -34,7 +35,7 @@ export default function TaskList() {
   const [loading, setLoading] = useState(false)
   const [statusFilter, setStatusFilter] = useState('')
   const [priorityFilter, setPriorityFilter] = useState('')
-  const { t } = useLocale()
+  const { t, tDept } = useLocale()
 
   const statusOptions = [
     { value: '', label: t('allStatus') },
@@ -80,7 +81,12 @@ export default function TaskList() {
   }
 
   const columns = [
-    { title: t('patient'), dataIndex: 'patient_name', key: 'patient_name' },
+    {
+      title: t('patient'),
+      dataIndex: 'patient_name',
+      key: 'patient_name',
+      render: (name, record) => <Link to={`/tasks/${record.id}`}>{name}</Link>,
+    },
     { title: t('chiefComplaint'), dataIndex: 'chief_complaint', key: 'chief_complaint', ellipsis: true },
     {
       title: t('status'),
@@ -89,12 +95,19 @@ export default function TaskList() {
       render: (s) => <Tag color={statusColors[s]}>{t(statusLabelKeys[s])}</Tag>,
     },
     {
-      title: t('priority'),
-      dataIndex: 'priority',
-      key: 'priority',
-      render: (p) => <Tag color={priorityColors[p]}>{t(priorityLabelKeys[p])}</Tag>,
+      title: t('finalPriority'),
+      key: 'final_priority',
+      render: (_, record) => {
+        const pri = record.final_priority || record.priority
+        return (
+          <Space size={4}>
+            <Tag color={priorityColors[pri]}>{t(priorityLabelKeys[pri])}</Tag>
+            {record.rule_triggered && <Tag color="warning">R</Tag>}
+          </Space>
+        )
+      },
     },
-    { title: t('department'), dataIndex: 'department', key: 'department' },
+    { title: t('finalDepartment'), dataIndex: 'final_department', key: 'final_department', render: (dept) => tDept(dept) },
     {
       title: t('created'),
       dataIndex: 'created_at',
@@ -105,9 +118,14 @@ export default function TaskList() {
       title: t('action'),
       key: 'action',
       render: (_, record) => (
-        <Button size="small" onClick={() => handleToggle(record.id)}>
-          {t('toggleStatus')}
-        </Button>
+        <Space>
+          <Button size="small" onClick={() => handleToggle(record.id)} disabled={record.status === 'completed'}>
+            {t('toggleStatus')}
+          </Button>
+          <Link to={`/tasks/${record.id}`}>
+            <Button size="small" type="link">{t('viewDetail')}</Button>
+          </Link>
+        </Space>
       ),
     },
   ]

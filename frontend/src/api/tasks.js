@@ -8,6 +8,10 @@ export function createTask(data) {
   return api.post('/tasks', data)
 }
 
+export function getTaskDetail(id) {
+  return api.get(`/tasks/${id}`)
+}
+
 export function listTasks(params = {}) {
   return api.get('/tasks', { params })
 }

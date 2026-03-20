@@ -22,17 +22,37 @@ type PriorityCount struct {
 }
 
 type DashboardResponse struct {
-	Total      int64           `json:"total"`
-	ByStatus   []StatusCount   `json:"by_status"`
-	ByPriority []PriorityCount `json:"by_priority"`
+	Total         int64           `json:"total"`
+	ByStatus      []StatusCount   `json:"by_status"`
+	ByPriority    []PriorityCount `json:"by_priority"`
+	TriageCount   int64           `json:"triage_count"`
+	RuleOverrides int64           `json:"rule_overrides"`
 }
 
 func (h *DashboardHandler) GetDashboard(c *gin.Context) {
 	var resp DashboardResponse
 
-	h.DB.Table("tasks").Count(&resp.Total)
-	h.DB.Table("tasks").Select("status, count(*) as count").Group("status").Scan(&resp.ByStatus)
-	h.DB.Table("tasks").Select("priority, count(*) as count").Group("priority").Scan(&resp.ByPriority)
+	if err := h.DB.Table("tasks").Count(&resp.Total).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if err := h.DB.Table("tasks").Select("status, count(*) as count").Group("status").Scan(&resp.ByStatus).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if err := h.DB.Table("tasks").Select("priority, count(*) as count").Group("priority").Scan(&resp.ByPriority).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := h.DB.Table("tasks").Where("triage_status = ?", "completed").Count(&resp.TriageCount).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if err := h.DB.Table("tasks").Where("rule_triggered != '' AND rule_triggered IS NOT NULL").Count(&resp.RuleOverrides).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
 
 	c.JSON(http.StatusOK, resp)
 }

@@ -8,6 +8,7 @@ import (
 	"github.com/triageflow/backend/config"
 	"github.com/triageflow/backend/handler"
 	"github.com/triageflow/backend/model"
+	"github.com/triageflow/backend/service"
 )
 
 func main() {
@@ -20,16 +21,24 @@ func main() {
 		log.Fatal("failed to migrate database:", err)
 	}
 
+	triageService := service.NewMockTriageService()
+	ruleEngine := service.NewRuleEngine()
+
 	r := gin.Default()
 	r.Use(cors.Default())
 
-	taskHandler := &handler.TaskHandler{DB: db}
+	taskHandler := &handler.TaskHandler{
+		DB:            db,
+		TriageService: triageService,
+		RuleEngine:    ruleEngine,
+	}
 	dashHandler := &handler.DashboardHandler{DB: db}
 
 	api := r.Group("/api")
 	{
 		api.POST("/tasks", taskHandler.CreateTask)
 		api.GET("/tasks", taskHandler.ListTasks)
+		api.GET("/tasks/:id", taskHandler.GetTask)
 		api.PATCH("/tasks/:id/status", taskHandler.ToggleStatus)
 		api.GET("/dashboard", dashHandler.GetDashboard)
 	}

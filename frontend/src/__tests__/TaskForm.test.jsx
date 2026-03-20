@@ -6,7 +6,7 @@ import { LocaleProvider } from '../locales'
 import TaskForm from '../components/TaskForm'
 
 vi.mock('../api/tasks', () => ({
-  createTask: vi.fn(() => Promise.resolve({ data: {} })),
+  createTask: vi.fn(() => Promise.resolve({ data: { id: 1 } })),
 }))
 
 import { createTask } from '../api/tasks'
@@ -26,21 +26,19 @@ describe('TaskForm', () => {
     vi.clearAllMocks()
   })
 
-  it('submits form with valid data', async () => {
+  it('submits form with patient name and chief complaint only', async () => {
     const user = userEvent.setup()
     renderForm()
 
-    // Default locale is zh, so use Chinese placeholders
-    await user.type(screen.getByPlaceholderText('请输入患者姓名'), 'John Doe')
-    await user.type(screen.getByPlaceholderText('请描述主诉症状'), 'Severe headache')
+    await user.type(screen.getByPlaceholderText('请输入患者姓名'), '张三')
+    await user.type(screen.getByPlaceholderText('请详细描述主诉症状'), '头痛三天')
 
     await user.click(screen.getByRole('button', { name: /提\s*交/i }))
 
     await waitFor(() => {
       expect(createTask).toHaveBeenCalledWith({
-        patient_name: 'John Doe',
-        chief_complaint: 'Severe headache',
-        priority: 'normal',
+        patient_name: '张三',
+        chief_complaint: '头痛三天',
       })
     })
   })

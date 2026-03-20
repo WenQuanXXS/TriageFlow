@@ -21,25 +21,35 @@ export default function Dashboard() {
   }
 
   return (
-    <Row gutter={16}>
-      <Col span={6}>
+    <Row gutter={[16, 16]}>
+      <Col span={4}>
         <Card>
           <Statistic title={t('total')} value={data.total} />
         </Card>
       </Col>
-      <Col span={6}>
+      <Col span={4}>
         <Card>
           <Statistic title={t('pending')} value={statusMap.pending || 0} valueStyle={{ color: '#fa8c16' }} />
         </Card>
       </Col>
-      <Col span={6}>
+      <Col span={4}>
         <Card>
           <Statistic title={t('inProgress')} value={statusMap.in_progress || 0} valueStyle={{ color: '#1890ff' }} />
         </Card>
       </Col>
-      <Col span={6}>
+      <Col span={4}>
         <Card>
           <Statistic title={t('completed')} value={statusMap.completed || 0} valueStyle={{ color: '#52c41a' }} />
+        </Card>
+      </Col>
+      <Col span={4}>
+        <Card>
+          <Statistic title={t('triaged')} value={data.triage_count || 0} valueStyle={{ color: '#722ed1' }} />
+        </Card>
+      </Col>
+      <Col span={4}>
+        <Card>
+          <Statistic title={t('ruleOverrides')} value={data.rule_overrides || 0} valueStyle={{ color: '#eb2f96' }} />
         </Card>
       </Col>
     </Row>

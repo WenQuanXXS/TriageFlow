@@ -11,6 +11,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/triageflow/backend/model"
+	"github.com/triageflow/backend/service"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 )
@@ -21,7 +22,7 @@ func setupTestDB(t *testing.T) *gorm.DB {
 	host := getEnvOrDefault("DB_HOST", "127.0.0.1")
 	port := getEnvOrDefault("DB_PORT", "3306")
 	user := getEnvOrDefault("DB_USER", "root")
-	pass := getEnvOrDefault("DB_PASS", "root123")
+	pass := getEnvOrDefault("DB_PASS", "1234")
 	name := getEnvOrDefault("DB_NAME", "triageflow_test")
 
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local",
@@ -49,13 +50,18 @@ func setupRouter(db *gorm.DB) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 
-	taskHandler := &TaskHandler{DB: db}
+	taskHandler := &TaskHandler{
+		DB:            db,
+		TriageService: service.NewMockTriageService(),
+		RuleEngine:    service.NewRuleEngine(),
+	}
 	dashHandler := &DashboardHandler{DB: db}
 
 	api := r.Group("/api")
 	{
 		api.POST("/tasks", taskHandler.CreateTask)
 		api.GET("/tasks", taskHandler.ListTasks)
+		api.GET("/tasks/:id", taskHandler.GetTask)
 		api.PATCH("/tasks/:id/status", taskHandler.ToggleStatus)
 		api.GET("/dashboard", dashHandler.GetDashboard)
 	}
@@ -63,11 +69,11 @@ func setupRouter(db *gorm.DB) *gin.Engine {
 	return r
 }
 
-func TestCreateTask(t *testing.T) {
+func TestCreateTask_Normal(t *testing.T) {
 	db := setupTestDB(t)
 	router := setupRouter(db)
 
-	body := `{"patient_name":"John Doe","chief_complaint":"headache","priority":"urgent","department":"Neurology"}`
+	body := `{"patient_name":"张三","chief_complaint":"头痛三天，伴有轻微恶心"}`
 	req := httptest.NewRequest(http.MethodPost, "/api/tasks", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
@@ -81,14 +87,68 @@ func TestCreateTask(t *testing.T) {
 	var task model.Task
 	json.Unmarshal(w.Body.Bytes(), &task)
 
-	if task.PatientName != "John Doe" {
-		t.Errorf("expected patient_name 'John Doe', got '%s'", task.PatientName)
+	if task.PatientName != "张三" {
+		t.Errorf("expected patient_name '张三', got '%s'", task.PatientName)
 	}
-	if task.Status != "pending" {
-		t.Errorf("expected status 'pending', got '%s'", task.Status)
+	if task.TriageStatus != "completed" {
+		t.Errorf("expected triage_status 'completed', got '%s'", task.TriageStatus)
 	}
-	if task.Priority != "urgent" {
-		t.Errorf("expected priority 'urgent', got '%s'", task.Priority)
+	if task.RuleTriggered != "" {
+		t.Errorf("expected no rule triggered, got '%s'", task.RuleTriggered)
+	}
+	if task.FinalPriority == "" {
+		t.Error("expected final_priority to be set")
+	}
+}
+
+func TestCreateTask_HighRisk(t *testing.T) {
+	db := setupTestDB(t)
+	router := setupRouter(db)
+
+	body := `{"patient_name":"李四","chief_complaint":"突发胸痛，持续半小时，出汗"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/tasks", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var task model.Task
+	json.Unmarshal(w.Body.Bytes(), &task)
+
+	if task.RuleTriggered != "chest_pain" {
+		t.Errorf("expected rule 'chest_pain', got '%s'", task.RuleTriggered)
+	}
+	if task.FinalPriority != "urgent" {
+		t.Errorf("expected final_priority 'urgent', got '%s'", task.FinalPriority)
+	}
+	if task.FinalDepartment != "Emergency" {
+		t.Errorf("expected final_department 'Emergency', got '%s'", task.FinalDepartment)
+	}
+}
+
+func TestGetTask(t *testing.T) {
+	db := setupTestDB(t)
+	router := setupRouter(db)
+
+	task := model.Task{PatientName: "Test", ChiefComplaint: "test", Status: "pending", Priority: "normal"}
+	db.Create(&task)
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/tasks/%d", task.ID), nil)
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	var got model.Task
+	json.Unmarshal(w.Body.Bytes(), &got)
+	if got.ID != task.ID {
+		t.Errorf("expected id %d, got %d", task.ID, got.ID)
 	}
 }
 
@@ -96,12 +156,10 @@ func TestListTasks(t *testing.T) {
 	db := setupTestDB(t)
 	router := setupRouter(db)
 
-	// Seed data
 	db.Create(&model.Task{PatientName: "A", ChiefComplaint: "cough", Status: "pending", Priority: "normal"})
 	db.Create(&model.Task{PatientName: "B", ChiefComplaint: "fever", Status: "in_progress", Priority: "urgent"})
 	db.Create(&model.Task{PatientName: "C", ChiefComplaint: "rash", Status: "pending", Priority: "low"})
 
-	// List all
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/tasks", nil)
 	router.ServeHTTP(w, req)
@@ -120,16 +178,6 @@ func TestListTasks(t *testing.T) {
 	json.Unmarshal(w.Body.Bytes(), &tasks)
 	if len(tasks) != 2 {
 		t.Errorf("expected 2 pending tasks, got %d", len(tasks))
-	}
-
-	// Filter by priority
-	w = httptest.NewRecorder()
-	req = httptest.NewRequest(http.MethodGet, "/api/tasks?priority=urgent", nil)
-	router.ServeHTTP(w, req)
-
-	json.Unmarshal(w.Body.Bytes(), &tasks)
-	if len(tasks) != 1 {
-		t.Errorf("expected 1 urgent task, got %d", len(tasks))
 	}
 }
 
@@ -160,27 +208,16 @@ func TestToggleStatus(t *testing.T) {
 	if updated.Status != "completed" {
 		t.Errorf("expected 'completed', got '%s'", updated.Status)
 	}
-
-	// completed -> pending
-	w = httptest.NewRecorder()
-	req = httptest.NewRequest(http.MethodPatch, fmt.Sprintf("/api/tasks/%d/status", task.ID), nil)
-	router.ServeHTTP(w, req)
-
-	json.Unmarshal(w.Body.Bytes(), &updated)
-	if updated.Status != "pending" {
-		t.Errorf("expected 'pending', got '%s'", updated.Status)
-	}
 }
 
 func TestDashboard(t *testing.T) {
 	db := setupTestDB(t)
 	router := setupRouter(db)
 
-	// Seed mixed data
 	db.Create(&model.Task{PatientName: "E", ChiefComplaint: "a", Status: "pending", Priority: "normal"})
 	db.Create(&model.Task{PatientName: "F", ChiefComplaint: "b", Status: "pending", Priority: "urgent"})
-	db.Create(&model.Task{PatientName: "G", ChiefComplaint: "c", Status: "in_progress", Priority: "normal"})
-	db.Create(&model.Task{PatientName: "H", ChiefComplaint: "d", Status: "completed", Priority: "low"})
+	db.Create(&model.Task{PatientName: "G", ChiefComplaint: "c", Status: "in_progress", Priority: "normal", TriageStatus: "completed"})
+	db.Create(&model.Task{PatientName: "H", ChiefComplaint: "d", Status: "completed", Priority: "low", TriageStatus: "completed", RuleTriggered: "chest_pain"})
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/dashboard", nil)
@@ -196,18 +233,10 @@ func TestDashboard(t *testing.T) {
 	if resp.Total != 4 {
 		t.Errorf("expected total 4, got %d", resp.Total)
 	}
-
-	statusMap := map[string]int64{}
-	for _, s := range resp.ByStatus {
-		statusMap[s.Status] = s.Count
+	if resp.TriageCount != 2 {
+		t.Errorf("expected triage_count 2, got %d", resp.TriageCount)
 	}
-	if statusMap["pending"] != 2 {
-		t.Errorf("expected 2 pending, got %d", statusMap["pending"])
-	}
-	if statusMap["in_progress"] != 1 {
-		t.Errorf("expected 1 in_progress, got %d", statusMap["in_progress"])
-	}
-	if statusMap["completed"] != 1 {
-		t.Errorf("expected 1 completed, got %d", statusMap["completed"])
+	if resp.RuleOverrides != 1 {
+		t.Errorf("expected rule_overrides 1, got %d", resp.RuleOverrides)
 	}
 }

@@ -1,4 +1,4 @@
-import { Routes, Route, Link } from 'react-router-dom'
+import { Routes, Route, Link, useLocation } from 'react-router-dom'
 import { Layout, Menu, Button, ConfigProvider } from 'antd'
 import { PlusOutlined, UnorderedListOutlined, TranslationOutlined } from '@ant-design/icons'
 import zhCN from 'antd/locale/zh_CN'
@@ -6,6 +6,7 @@ import enUS from 'antd/locale/en_US'
 import TaskForm from './components/TaskForm'
 import TaskList from './components/TaskList'
 import Dashboard from './components/Dashboard'
+import TriageDetail from './components/TriageDetail'
 import { useLocale } from './locales'
 
 const { Header, Content } = Layout
@@ -21,6 +22,7 @@ function HomePage() {
 
 export default function App() {
   const { lang, t, toggleLang } = useLocale()
+  const location = useLocation()
 
   const menuItems = [
     { key: '/', label: <Link to="/">{t('dashboard')}</Link>, icon: <UnorderedListOutlined /> },
@@ -34,7 +36,7 @@ export default function App() {
           <Menu
             theme="dark"
             mode="horizontal"
-            defaultSelectedKeys={['/']}
+            selectedKeys={[location.pathname]}
             items={menuItems}
             style={{ flex: 1 }}
           />
@@ -51,6 +53,7 @@ export default function App() {
           <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/new" element={<TaskForm />} />
+            <Route path="/tasks/:id" element={<TriageDetail />} />
           </Routes>
         </Content>
       </Layout>
