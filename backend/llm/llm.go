@@ -83,5 +83,21 @@ func (s *EinoTriageService) PerformTriage(ctx context.Context, info service.Pati
 		return nil, rawOutput, fmt.Errorf("failed to parse LLM response: %w (raw: %s)", err, rawOutput)
 	}
 
+	result.SuggestedPri = normalizePriority(result.SuggestedPri)
+
 	return &result, rawOutput, nil
+}
+
+// normalizePriority maps LLM-returned priority to one of the valid values: urgent, high, normal.
+func normalizePriority(pri string) string {
+	switch strings.ToLower(strings.TrimSpace(pri)) {
+	case "urgent", "emergency", "critical":
+		return "urgent"
+	case "high", "moderate", "medium":
+		return "high"
+	case "normal", "low", "routine":
+		return "normal"
+	default:
+		return "normal"
+	}
 }

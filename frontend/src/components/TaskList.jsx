@@ -1,34 +1,11 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Table, Tag, Button, Select, Space, message } from 'antd'
+import { Table, Button, Select, Space, message } from 'antd'
 import { Link } from 'react-router-dom'
+import { EyeOutlined } from '@ant-design/icons'
 import { listTasks, toggleTaskStatus } from '../api/tasks'
 import { useLocale } from '../locales'
-
-const statusColors = {
-  pending: 'orange',
-  in_progress: 'blue',
-  completed: 'green',
-}
-
-const priorityColors = {
-  urgent: 'red',
-  high: 'volcano',
-  normal: 'blue',
-  low: 'default',
-}
-
-const statusLabelKeys = {
-  pending: 'statusPending',
-  in_progress: 'statusInProgress',
-  completed: 'statusCompleted',
-}
-
-const priorityLabelKeys = {
-  urgent: 'priorityUrgent',
-  high: 'priorityHigh',
-  normal: 'priorityNormal',
-  low: 'priorityLow',
-}
+import StatusBadge, { statusLabelKeys } from './shared/StatusBadge'
+import PriorityBadge, { priorityLabelKeys } from './shared/PriorityBadge'
 
 export default function TaskList() {
   const [tasks, setTasks] = useState([])
@@ -85,45 +62,75 @@ export default function TaskList() {
       title: t('patient'),
       dataIndex: 'patient_name',
       key: 'patient_name',
-      render: (name, record) => <Link to={`/tasks/${record.id}`}>{name}</Link>,
+      render: (name, record) => (
+        <Link to={`/console/tasks/${record.id}`} style={{ fontWeight: 500 }}>
+          {name}
+        </Link>
+      ),
     },
-    { title: t('chiefComplaint'), dataIndex: 'chief_complaint', key: 'chief_complaint', ellipsis: true },
+    {
+      title: t('chiefComplaint'),
+      dataIndex: 'chief_complaint',
+      key: 'chief_complaint',
+      ellipsis: true,
+      render: (text) => <span style={{ color: '#5a6a7e' }}>{text}</span>,
+    },
     {
       title: t('status'),
       dataIndex: 'status',
       key: 'status',
-      render: (s) => <Tag color={statusColors[s]}>{t(statusLabelKeys[s])}</Tag>,
+      width: 130,
+      render: (s) => <StatusBadge status={s} label={t(statusLabelKeys[s])} />,
     },
     {
       title: t('finalPriority'),
       key: 'final_priority',
+      width: 140,
       render: (_, record) => {
         const pri = record.final_priority || record.priority
         return (
           <Space size={4}>
-            <Tag color={priorityColors[pri]}>{t(priorityLabelKeys[pri])}</Tag>
-            {record.rule_triggered && <Tag color="warning">R</Tag>}
+            <PriorityBadge priority={pri} label={t(priorityLabelKeys[pri])} />
+            {record.rule_triggered && <span className="tf-rule-badge">R</span>}
           </Space>
         )
       },
     },
-    { title: t('finalDepartment'), dataIndex: 'final_department', key: 'final_department', render: (dept) => tDept(dept) },
+    {
+      title: t('finalDepartment'),
+      dataIndex: 'final_department',
+      key: 'final_department',
+      render: (dept) => <span style={{ fontWeight: 500 }}>{tDept(dept)}</span>,
+    },
     {
       title: t('created'),
       dataIndex: 'created_at',
       key: 'created_at',
-      render: (v) => new Date(v).toLocaleString(),
+      width: 170,
+      render: (v) => (
+        <span style={{ color: '#8e9aab', fontSize: 13 }}>
+          {new Date(v).toLocaleString()}
+        </span>
+      ),
     },
     {
       title: t('action'),
       key: 'action',
+      width: 180,
       render: (_, record) => (
-        <Space>
-          <Button size="small" onClick={() => handleToggle(record.id)} disabled={record.status === 'completed'}>
+        <Space size={8}>
+          <Button
+            size="small"
+            onClick={() => handleToggle(record.id)}
+            disabled={record.status === 'completed'}
+            style={{ borderRadius: 6, fontSize: 13 }}
+          >
             {t('toggleStatus')}
           </Button>
-          <Link to={`/tasks/${record.id}`}>
-            <Button size="small" type="link">{t('viewDetail')}</Button>
+          <Link to={`/console/tasks/${record.id}`}>
+            <Button size="small" type="text" icon={<EyeOutlined />} style={{ borderRadius: 6, fontSize: 13 }}>
+              {t('viewDetail')}
+            </Button>
           </Link>
         </Space>
       ),
@@ -131,8 +138,8 @@ export default function TaskList() {
   ]
 
   return (
-    <div style={{ marginTop: 24 }}>
-      <Space style={{ marginBottom: 16 }}>
+    <div className="tf-table-wrap" style={{ marginTop: 24 }}>
+      <div className="tf-table-toolbar">
         <Select
           value={statusFilter}
           onChange={setStatusFilter}
@@ -145,7 +152,7 @@ export default function TaskList() {
           options={priorityOptions}
           style={{ width: 150 }}
         />
-      </Space>
+      </div>
       <Table
         dataSource={tasks}
         columns={columns}
