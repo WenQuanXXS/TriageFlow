@@ -35,6 +35,8 @@ func setupTestDB(t *testing.T) *gorm.DB {
 
 	db.Migrator().DropTable(&model.Task{})
 	db.AutoMigrate(&model.Task{})
+	db.Migrator().DropTable(&model.QueueEntry{})
+	db.AutoMigrate(&model.QueueEntry{})
 
 	return db
 }
@@ -54,6 +56,7 @@ func setupRouter(db *gorm.DB) *gin.Engine {
 		DB:            db,
 		TriageService: service.NewMockTriageService(),
 		RuleEngine:    service.NewRuleEngine(),
+		QueueService:  service.NewQueueService(),
 	}
 	dashHandler := &DashboardHandler{DB: db}
 

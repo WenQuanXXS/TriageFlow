@@ -23,7 +23,7 @@ func main() {
 		log.Fatal("failed to connect to database:", err)
 	}
 
-	if err := db.AutoMigrate(&model.Task{}); err != nil {
+	if err := db.AutoMigrate(&model.Task{}, &model.QueueEntry{}); err != nil {
 		log.Fatal("failed to migrate database:", err)
 	}
 
@@ -41,6 +41,7 @@ func main() {
 		log.Println("Using Mock triage service")
 	}
 	ruleEngine := service.NewRuleEngine()
+	queueService := service.NewQueueService()
 
 	r := gin.Default()
 	r.Use(cors.Default())
@@ -49,8 +50,10 @@ func main() {
 		DB:            db,
 		TriageService: triageService,
 		RuleEngine:    ruleEngine,
+		QueueService:  queueService,
 	}
 	dashHandler := &handler.DashboardHandler{DB: db}
+	queueHandler := &handler.QueueHandler{DB: db, QueueService: queueService}
 
 	api := r.Group("/api")
 	{
@@ -59,6 +62,11 @@ func main() {
 		api.GET("/tasks/:id", taskHandler.GetTask)
 		api.PATCH("/tasks/:id/status", taskHandler.ToggleStatus)
 		api.GET("/dashboard", dashHandler.GetDashboard)
+
+		api.GET("/queue", queueHandler.ListQueue)
+		api.GET("/queue/:taskId/position", queueHandler.GetPosition)
+		api.PATCH("/queue/:taskId/call", queueHandler.CallPatient)
+		api.PATCH("/queue/:taskId/complete", queueHandler.CompletePatient)
 	}
 
 	log.Println("Server starting on :8080")

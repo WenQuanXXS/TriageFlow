@@ -1,54 +1,50 @@
 import { useState, useCallback } from 'react'
 import { Table, Button, Select, Space, Tag, message } from 'antd'
 import { ReloadOutlined, PhoneOutlined, CheckOutlined } from '@ant-design/icons'
-import { listTasks, toggleTaskStatus } from '../api/tasks'
+import { listQueue, callQueuePatient, completeQueuePatient } from '../api/tasks'
 import { useLocale } from '../locales'
 import PriorityBadge, { priorityLabelKeys } from './shared/PriorityBadge'
 import { usePolling } from '../hooks/usePolling'
 
-const nurseStatusColors = {
-  pending: '#e67e22',
-  in_progress: '#3498db',
+const queueStatusColors = {
+  waiting: '#e67e22',
+  called: '#3498db',
   completed: '#27ae60',
 }
 
-const nurseStatusKeys = {
-  pending: 'statusWaiting',
-  in_progress: 'statusInConsultation',
+const queueStatusKeys = {
+  waiting: 'statusWaiting',
+  called: 'statusCalled',
   completed: 'statusCompleted',
 }
 
 export default function NursePortal() {
-  const [tasks, setTasks] = useState([])
+  const [entries, setEntries] = useState([])
   const [loading, setLoading] = useState(false)
   const [statusFilter, setStatusFilter] = useState('')
   const [lastUpdated, setLastUpdated] = useState(null)
   const { t, tDept } = useLocale()
 
-  const fetchTasks = useCallback(async () => {
+  const fetchQueue = useCallback(async () => {
     try {
-      const { data } = await listTasks()
-      // Sort: in_progress first, then pending (by created_at asc), then completed
-      const sorted = [...data].sort((a, b) => {
-        const order = { in_progress: 0, pending: 1, completed: 2 }
-        if (order[a.status] !== order[b.status]) return order[a.status] - order[b.status]
-        return new Date(a.created_at) - new Date(b.created_at)
-      })
-      setTasks(sorted)
+      const params = {}
+      if (statusFilter) params.queue_status = statusFilter
+      const { data } = await listQueue(params)
+      setEntries(data)
       setLastUpdated(new Date())
     } catch {
       message.error(t('loadTasksFail'))
     }
-  }, [t])
+  }, [statusFilter, t])
 
-  usePolling(fetchTasks, 5000)
+  usePolling(fetchQueue, 5000)
 
-  const handleCall = async (id) => {
+  const handleCall = async (taskId) => {
     setLoading(true)
     try {
-      await toggleTaskStatus(id)
-      message.success(`#${String(id).padStart(3, '0')} ${t('callPatient')}`)
-      fetchTasks()
+      await callQueuePatient(taskId)
+      message.success(`#${String(taskId).padStart(3, '0')} ${t('callPatient')}`)
+      fetchQueue()
     } catch {
       message.error(t('updateStatusFail'))
     } finally {
@@ -56,36 +52,34 @@ export default function NursePortal() {
     }
   }
 
-  const handleComplete = async (id) => {
+  const handleComplete = async (taskId) => {
     setLoading(true)
     try {
-      await toggleTaskStatus(id)
-      fetchTasks()
+      await completeQueuePatient(taskId)
+      fetchQueue()
     } catch {
       message.error(t('updateStatusFail'))
     } finally {
       setLoading(false)
     }
   }
-
-  const filtered = statusFilter ? tasks.filter((t) => t.status === statusFilter) : tasks
 
   const statusOptions = [
     { value: '', label: t('allStatus') },
-    { value: 'pending', label: t('statusWaiting') },
-    { value: 'in_progress', label: t('statusInConsultation') },
+    { value: 'waiting', label: t('statusWaiting') },
+    { value: 'called', label: t('statusCalled') },
     { value: 'completed', label: t('completed') },
   ]
 
   const columns = [
     {
       title: t('patientNo'),
-      dataIndex: 'id',
-      key: 'id',
+      dataIndex: 'queue_number',
+      key: 'queue_number',
       width: 100,
-      render: (id) => (
+      render: (num, record) => (
         <span style={{ fontWeight: 700, fontSize: 15, color: '#1a2332' }}>
-          #{String(id).padStart(3, '0')}
+          #{String(record.task_id).padStart(3, '0')}
         </span>
       ),
     },
@@ -104,28 +98,26 @@ export default function NursePortal() {
     },
     {
       title: t('finalPriority'),
-      key: 'final_priority',
+      dataIndex: 'priority',
+      key: 'priority',
       width: 120,
-      render: (_, record) => {
-        const pri = record.final_priority || record.priority
-        return <PriorityBadge priority={pri} label={t(priorityLabelKeys[pri])} />
-      },
+      render: (pri) => <PriorityBadge priority={pri} label={t(priorityLabelKeys[pri])} />,
     },
     {
       title: t('finalDepartment'),
-      dataIndex: 'final_department',
-      key: 'final_department',
+      dataIndex: 'department',
+      key: 'department',
       width: 130,
       render: (dept) => <span style={{ fontWeight: 500 }}>{tDept(dept)}</span>,
     },
     {
       title: t('status'),
-      dataIndex: 'status',
-      key: 'status',
+      dataIndex: 'queue_status',
+      key: 'queue_status',
       width: 120,
       render: (s) => (
-        <Tag color={nurseStatusColors[s]} style={{ borderRadius: 6, fontWeight: 500 }}>
-          {t(nurseStatusKeys[s])}
+        <Tag color={queueStatusColors[s]} style={{ borderRadius: 6, fontWeight: 500 }}>
+          {t(queueStatusKeys[s])}
         </Tag>
       ),
     },
@@ -134,13 +126,13 @@ export default function NursePortal() {
       key: 'action',
       width: 120,
       render: (_, record) => {
-        if (record.status === 'pending') {
+        if (record.queue_status === 'waiting') {
           return (
             <Button
               type="primary"
               size="small"
               icon={<PhoneOutlined />}
-              onClick={() => handleCall(record.id)}
+              onClick={() => handleCall(record.task_id)}
               loading={loading}
               className="tf-nurse-call-btn"
             >
@@ -148,12 +140,12 @@ export default function NursePortal() {
             </Button>
           )
         }
-        if (record.status === 'in_progress') {
+        if (record.queue_status === 'called') {
           return (
             <Button
               size="small"
               icon={<CheckOutlined />}
-              onClick={() => handleComplete(record.id)}
+              onClick={() => handleComplete(record.task_id)}
               loading={loading}
             >
               {t('completeVisit')}
@@ -176,7 +168,7 @@ export default function NursePortal() {
             options={statusOptions}
             style={{ width: 150 }}
           />
-          <Button icon={<ReloadOutlined />} onClick={fetchTasks}>
+          <Button icon={<ReloadOutlined />} onClick={fetchQueue}>
             {t('refresh')}
           </Button>
           {lastUpdated && (
@@ -188,12 +180,12 @@ export default function NursePortal() {
       </div>
       <div className="tf-table-wrap">
         <Table
-          dataSource={filtered}
+          dataSource={entries}
           columns={columns}
           rowKey="id"
           pagination={{ pageSize: 15 }}
           rowClassName={(record) =>
-            record.status === 'in_progress' ? 'tf-nurse-row-active' : ''
+            record.queue_status === 'called' ? 'tf-nurse-row-active' : ''
           }
         />
       </div>

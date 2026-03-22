@@ -88,10 +88,12 @@ const messages = {
     completeVisit: 'Complete',
     patientNo: 'Patient No.',
     statusWaiting: 'Waiting',
+    statusCalled: 'Called',
     statusInConsultation: 'In Consultation',
     lastUpdated: 'Last updated',
     refresh: 'Refresh',
     noWaitingPatients: 'No waiting patients',
+    pleaseGoTo: 'Please {no} go to {dept}',
     // Patient portal
     patientRegistration: 'Patient Registration',
     registrationSuccess: 'Registration successful',
@@ -196,10 +198,12 @@ const messages = {
     completeVisit: '完成',
     patientNo: '患者编号',
     statusWaiting: '候诊中',
+    statusCalled: '已叫号',
     statusInConsultation: '就诊中',
     lastUpdated: '最后更新',
     refresh: '刷新',
     noWaitingPatients: '暂无候诊患者',
+    pleaseGoTo: '请{no}到{dept}就诊',
     // Patient portal
     patientRegistration: '患者挂号',
     registrationSuccess: '挂号成功',
@@ -267,7 +271,15 @@ const LocaleContext = createContext()
 export function LocaleProvider({ children }) {
   const [lang, setLang] = useState('zh')
 
-  const t = (key) => messages[lang]?.[key] ?? key
+  const t = (key, params) => {
+    let str = messages[lang]?.[key] ?? key
+    if (params) {
+      for (const [k, v] of Object.entries(params)) {
+        str = str.replace(`{${k}}`, v)
+      }
+    }
+    return str
+  }
   const tDept = (dept) => deptNames[lang]?.[dept] ?? dept
   const toggleLang = () => setLang((l) => (l === 'zh' ? 'en' : 'zh'))
 

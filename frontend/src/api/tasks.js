@@ -23,3 +23,21 @@ export function toggleTaskStatus(id) {
 export function getDashboard() {
   return api.get('/dashboard')
 }
+
+// Queue APIs
+
+export function listQueue(params = {}) {
+  return api.get('/queue', { params })
+}
+
+export function getQueuePosition(taskId) {
+  return api.get(`/queue/${taskId}/position`)
+}
+
+export function callQueuePatient(taskId) {
+  return api.patch(`/queue/${taskId}/call`)
+}
+
+export function completeQueuePatient(taskId) {
+  return api.patch(`/queue/${taskId}/complete`)
+}

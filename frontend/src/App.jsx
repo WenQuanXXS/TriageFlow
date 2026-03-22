@@ -18,6 +18,7 @@ import TriageDetail from './components/TriageDetail'
 import PortalHome from './components/PortalHome'
 import NursePortal from './components/NursePortal'
 import PatientQueue from './components/PatientQueue'
+import QueueBoard from './components/QueueBoard'
 import { useLocale } from './locales'
 
 const { Header, Content } = Layout
@@ -90,6 +91,7 @@ function getMenuItems(pathname, t) {
   if (pathname.startsWith('/patient')) {
     return [
       { key: '/patient', label: <Link to="/patient">{t('patientRegistration')}</Link>, icon: <UserOutlined /> },
+      { key: '/patient/board', label: <Link to="/patient/board">{t('queueBoard')}</Link>, icon: <UnorderedListOutlined /> },
     ]
   }
   return []
@@ -98,6 +100,7 @@ function getMenuItems(pathname, t) {
 function getSelectedKey(pathname) {
   if (pathname.startsWith('/console/tasks')) return '/console'
   if (pathname.startsWith('/patient/queue')) return '/patient'
+  if (pathname.startsWith('/patient/board')) return '/patient/board'
   return pathname
 }
 
@@ -151,6 +154,7 @@ export default function App() {
             <Route path="/console/tasks/:id" element={<TriageDetail />} />
             <Route path="/nurse" element={<NursePortal />} />
             <Route path="/patient" element={<PatientRegister />} />
+            <Route path="/patient/board" element={<QueueBoard />} />
             <Route path="/patient/queue/:id" element={<PatientQueue />} />
           </Routes>
         </Content>

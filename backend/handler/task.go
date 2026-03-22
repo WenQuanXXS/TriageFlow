@@ -15,6 +15,7 @@ type TaskHandler struct {
 	DB            *gorm.DB
 	TriageService service.Triager
 	RuleEngine    *service.RuleEngine
+	QueueService  *service.QueueService
 }
 
 type CreateTaskRequest struct {
@@ -89,6 +90,15 @@ func (h *TaskHandler) CreateTask(c *gin.Context) {
 	if err := h.DB.Create(&task).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
+	}
+
+	// Auto-enqueue if triage completed successfully
+	if task.TriageStatus == "completed" && task.FinalDepartment != "" && h.QueueService != nil {
+		if err := h.QueueService.Enqueue(h.DB, &task); err != nil {
+			// Log but don't fail the task creation
+			c.JSON(http.StatusCreated, task)
+			return
+		}
 	}
 
 	c.JSON(http.StatusCreated, task)

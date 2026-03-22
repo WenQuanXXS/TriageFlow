@@ -3,18 +3,17 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { Card, Button, Spin, message } from 'antd'
 import {
   ArrowLeftOutlined,
-  UserOutlined,
   ClockCircleOutlined,
   CheckCircleOutlined,
   BellOutlined,
 } from '@ant-design/icons'
-import { listTasks, getTaskDetail } from '../api/tasks'
+import { getQueuePosition } from '../api/tasks'
 import { useLocale } from '../locales'
 import { usePolling } from '../hooks/usePolling'
 
 const patientStatusConfig = {
-  pending: { key: 'statusWaiting', color: '#e67e22', icon: <ClockCircleOutlined /> },
-  in_progress: { key: 'yourTurn', color: '#2e9b6e', icon: <BellOutlined /> },
+  waiting: { key: 'statusWaiting', color: '#e67e22', icon: <ClockCircleOutlined /> },
+  called: { key: 'yourTurn', color: '#2e9b6e', icon: <BellOutlined /> },
   completed: { key: 'visitComplete', color: '#8e9aab', icon: <CheckCircleOutlined /> },
 }
 
@@ -26,18 +25,13 @@ export default function PatientQueue() {
   const { id } = useParams()
   const navigate = useNavigate()
   const { t, tDept } = useLocale()
-  const [myTask, setMyTask] = useState(null)
-  const [allTasks, setAllTasks] = useState([])
+  const [position, setPosition] = useState(null)
   const [loading, setLoading] = useState(true)
 
   const fetchData = useCallback(async () => {
     try {
-      const [taskRes, listRes] = await Promise.all([
-        getTaskDetail(id),
-        listTasks(),
-      ])
-      setMyTask(taskRes.data)
-      setAllTasks(listRes.data)
+      const { data } = await getQueuePosition(id)
+      setPosition(data)
     } catch {
       message.error(t('loadDetailFail'))
     } finally {
@@ -48,24 +42,11 @@ export default function PatientQueue() {
   usePolling(fetchData, 10000)
 
   if (loading) return <Spin style={{ display: 'block', margin: '100px auto' }} />
-  if (!myTask) return null
+  if (!position) return null
 
-  const statusCfg = patientStatusConfig[myTask.status] || patientStatusConfig.pending
-
-  // Calculate queue position: pending tasks created before this one
-  const pendingTasks = allTasks
-    .filter((t) => t.status === 'pending')
-    .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
-  const myIndex = pendingTasks.findIndex((t) => t.id === myTask.id)
-  const ahead = myIndex >= 0 ? myIndex : 0
-
-  // Queue board data
-  const nowServing = allTasks
-    .filter((t) => t.status === 'in_progress')
-    .sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at))
-    .slice(0, 3)
-
-  const waitingList = pendingTasks.slice(0, 8)
+  const statusCfg = patientStatusConfig[position.queue_status] || patientStatusConfig.waiting
+  const nowServing = position.now_serving || []
+  const waitingList = position.waiting_list || []
 
   return (
     <div style={{ maxWidth: 800, margin: '0 auto' }}>
@@ -84,11 +65,11 @@ export default function PatientQueue() {
         <div className="tf-queue-my-header">
           <div>
             <div className="tf-queue-label">{t('yourNumber')}</div>
-            <div className="tf-queue-number">{formatNo(myTask.id)}</div>
+            <div className="tf-queue-number">{formatNo(position.task_id)}</div>
           </div>
           <div className="tf-queue-my-right">
             <div
-              className={`tf-queue-status-badge ${myTask.status === 'in_progress' ? 'active' : ''}`}
+              className={`tf-queue-status-badge ${position.queue_status === 'called' ? 'active' : ''}`}
               style={{ color: statusCfg.color, borderColor: statusCfg.color }}
             >
               {statusCfg.icon}
@@ -98,29 +79,29 @@ export default function PatientQueue() {
         </div>
 
         <div className="tf-queue-info-grid">
-          {myTask.final_department && (
+          {position.department && (
             <div className="tf-queue-info-item">
               <div className="tf-queue-info-label">{t('assignedDept')}</div>
-              <div className="tf-queue-info-value">{tDept(myTask.final_department)}</div>
+              <div className="tf-queue-info-value">{tDept(position.department)}</div>
             </div>
           )}
-          {myTask.status === 'pending' && (
+          {position.queue_status === 'waiting' && (
             <div className="tf-queue-info-item">
               <div className="tf-queue-info-label">{t('queuePosition')}</div>
               <div className="tf-queue-info-value">
-                {ahead === 0 ? t('noOneAhead') : `${ahead}${t('peopleAhead')}`}
+                {position.ahead === 0 ? t('noOneAhead') : `${position.ahead}${t('peopleAhead')}`}
               </div>
             </div>
           )}
         </div>
 
-        {myTask.status === 'pending' && (
+        {position.queue_status === 'waiting' && (
           <div className="tf-queue-hint">
             <ClockCircleOutlined /> {t('waitingForCall')}
           </div>
         )}
 
-        {myTask.status === 'in_progress' && (
+        {position.queue_status === 'called' && (
           <div className="tf-queue-alert">
             <BellOutlined /> {t('yourTurn')}
           </div>
@@ -134,12 +115,12 @@ export default function PatientQueue() {
             <div className="tf-queue-board-title">{t('nowServing')}</div>
             <div className="tf-queue-board-numbers">
               {nowServing.length > 0 ? (
-                nowServing.map((task) => (
+                nowServing.map((entry) => (
                   <div
-                    key={task.id}
-                    className={`tf-queue-board-number serving ${task.id === myTask.id ? 'is-me' : ''}`}
+                    key={entry.id}
+                    className={`tf-queue-board-number serving ${entry.task_id === Number(id) ? 'is-me' : ''}`}
                   >
-                    {formatNo(task.id)}
+                    {t('pleaseGoTo', { no: formatNo(entry.task_id), dept: tDept(entry.department) })}
                   </div>
                 ))
               ) : (
@@ -151,12 +132,12 @@ export default function PatientQueue() {
             <div className="tf-queue-board-title">{t('waitingList')}</div>
             <div className="tf-queue-board-numbers">
               {waitingList.length > 0 ? (
-                waitingList.map((task) => (
+                waitingList.map((entry) => (
                   <div
-                    key={task.id}
-                    className={`tf-queue-board-number ${task.id === myTask.id ? 'is-me' : ''}`}
+                    key={entry.id}
+                    className={`tf-queue-board-number ${entry.task_id === Number(id) ? 'is-me' : ''}`}
                   >
-                    {formatNo(task.id)}
+                    {formatNo(entry.task_id)}
                   </div>
                 ))
               ) : (
